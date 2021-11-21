@@ -1,0 +1,41 @@
+<Project DefaultTargets="Rebuild" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+    <Target Name="Rebuild">
+        <!-- Clean injector targets -->
+        <Message Importance="high" Text="Cleaning injector x64..." />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Clean" Properties="Configuration=Release;Platform=x64" />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Clean" Properties="Configuration=Debug;Platform=x64" />
+
+        <Message Importance="high" Text="Cleaning injector x86..." />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Clean" Properties="Configuration=Release;Platform=Win32" />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Clean" Properties="Configuration=Debug;Platform=Win32" />
+
+        <!-- Build injectors targets -->
+        <Message Importance="high" Text="Building injector x64..." />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Build" Properties="Configuration=Release;Platform=x64" />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Build" Properties="Configuration=Debug;Platform=x64" />
+
+        <Message Importance="high" Text="Building injector x86..." />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Build" Properties="Configuration=Release;Platform=Win32" />
+        <MSBuild Projects="..\src\injector\injector.vcxproj" Targets="Build" Properties="Configuration=Debug;Platform=Win32" />
+
+        <!-- Clean rsFileProtect targets -->
+        <Message Importance="high" Text="Cleaning rsFileProtect x64..." />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Clean" Properties="Configuration=Release;Platform=x64" />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Clean" Properties="Configuration=Debug;Platform=x64" />
+
+        <Message Importance="high" Text="Cleaning rsFileProtect x86..." />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Clean" Properties="Configuration=Release;Platform=Win32" />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Clean" Properties="Configuration=Debug;Platform=Win32" />
+
+        <!-- Build rsFileProtects targets -->
+        <Message Importance="high" Text="Building rsFileProtect x64..." />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Build" Properties="Configuration=Release;Platform=x64" />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Build" Properties="Configuration=Debug;Platform=x64" />
+
+        <Message Importance="high" Text="Building rsFileProtect x86..." />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Build" Properties="Configuration=Release;Platform=Win32" />
+        <MSBuild Projects="..\src\rsFileProtect\rsFileProtect.vcxproj" Targets="Build" Properties="Configuration=Debug;Platform=Win32" />
+    </Target>
+
+</Project>

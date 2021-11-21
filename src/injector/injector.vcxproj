@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{dc98d4b5-8e57-4228-9a3d-f9ff1ff0f31a}</ProjectGuid>
+    <RootNamespace>injector</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>..\..\out\</OutDir>
+    <IntDir>..\..\tmp\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName)32d</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>..\..\out\</OutDir>
+    <IntDir>..\..\tmp\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName)32</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>..\..\out\</OutDir>
+    <IntDir>..\..\tmp\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName)64d</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>..\..\out\</OutDir>
+    <IntDir>..\..\tmp\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>$(ProjectName)64</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <SupportJustMyCode>false</SupportJustMyCode>
+      <AdditionalIncludeDirectories>../common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ucrtd.lib;msvcrtd.lib;shlwapi.lib;imagehlp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <EntryPointSymbol>EntryPoint</EntryPointSymbol>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>../common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat />
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ucrt.lib;msvcrt.lib;shlwapi.lib;imagehlp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <EntryPointSymbol>EntryPoint</EntryPointSymbol>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>../common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <SupportJustMyCode>false</SupportJustMyCode>
+      <OmitFramePointers>
+      </OmitFramePointers>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ucrtd.lib;msvcrtd.lib;shlwapi.lib;imagehlp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <EntryPointSymbol>EntryPoint</EntryPointSymbol>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>../common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ucrt.lib;msvcrt.lib;shlwapi.lib;imagehlp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <EntryPointSymbol>EntryPoint</EntryPointSymbol>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\common\logger.cpp" />
+    <ClCompile Include="injector.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\common\logger.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
