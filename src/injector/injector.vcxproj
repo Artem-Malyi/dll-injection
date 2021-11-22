@@ -209,6 +209,10 @@
     <ClInclude Include="..\common\logger.h" />
   </ItemGroup>
   <ItemGroup>
+    <MASM Include="shLoadLibraryA-x64.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </MASM>
     <MASM Include="shLoadLibraryA-x86.asm">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>

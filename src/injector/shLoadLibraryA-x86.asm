@@ -1,57 +1,64 @@
+;
+; shLoadLibraryA-x86.asm
+;
+
 .386
 .model flat, stdcall
 
 public shLoadLibraryA
 
 assume fs:nothing
-.code	
-	shLoadLibraryA proc
-		pushad
-		mov		eax, esp				;// 1. get the pointer to accessible memory, it will be referenced in step 3 below.				
-		call	$+4						;// 2. e8 ff ff ff ff  [after this call eip will point to the last ff byte in this instruction]
-	 	db		030h					;// 3. ff 30 -> push dword ptr [eax]
-		pop		eax						;// 4. retore stack pointer after previos instruction
-		pop		eax						;// 5. pop the value that was pushed by call. 
-		sub		eax, 8					;// 6. eax is now holds a pointer the the beginning of code loadLibraryA 	
-			
-		mov		ebx, eax
-		mov		ecx, 0 - (getKernel32Base - shLoadLibraryA)
-		neg		ecx
-		add		eax, ecx
-		call	eax						;// call getKernel32Base, after the call eax = pKernel32Base
-		
-        mov		edx, ebx
-		mov		ecx, 0 - (getProcAddress - shLoadLibraryA)
-		neg		ecx
-		add		edx, ecx
-		mov     esi, 0EC0E4E8Eh			;// "LoadLibraryA"
-        call    edx						;// getProcAddress(eax - pKernel32Base, esi - hash of "LoadLibraryA" string)
-        
-        mov		edx, ebx
-        mov		ecx, 0 - (dllName - shLoadLibraryA)
-		neg		ecx
-		add		edx, ecx
-        push	edx						;// pDllName
-        call	eax						;// call LoadLibraryA(dllName)
-        
-		popad
-		ret
-	shLoadLibraryA endp
+.code
 
-	getKernel32Base proc
-        push	esi
+    shLoadLibraryA proc
+        pushad
+        mov     eax, esp                ;// 1. get the pointer to accessible memory, it will be referenced in step 3 below
+        call    $+4                     ;// 2. e8 ff ff ff ff  [after this call eip will point to the last ff byte in this instruction]
+        db      030h                    ;// 3. ff 30 -> push dword ptr [eax]
+        pop	    eax	                    ;// 4. retore stack pointer after previos instruction
+        pop	    eax	                    ;// 5. pop the value that was pushed by call
+        sub	    eax, 8                  ;// 6. eax is now holds a pointer the the beginning of code loadLibraryA
+
+        mov	    ebx, eax
+        mov	    ecx, 0 - (getKernel32Base - shLoadLibraryA)
+        neg	    ecx
+        add	    eax, ecx
+        call    eax	                    ;// call getKernel32Base, after the call eax = pKernel32Base
+
+        mov	    edx, ebx
+        mov	    ecx, 0 - (getProcAddress - shLoadLibraryA)
+        neg	    ecx
+        add	    edx, ecx
+        mov     esi, 0EC0E4E8Eh         ;// "LoadLibraryA", obtained by ROR13 hashing approach
+        call    edx	                    ;// getProcAddress(eax - pKernel32Base, esi - hash of "LoadLibraryA" string)
+
+        mov	    edx, ebx
+        mov	    ecx, 0 - (dllName - shLoadLibraryA)
+        neg	    ecx
+        add	    edx, ecx
+        push    edx	                    ;// pDllName
+        call    eax	                    ;// call LoadLibraryA(dllName)
+
+        popad
+        ret
+    shLoadLibraryA endp
+
+
+    getKernel32Base proc
+        push    esi
         xor     eax, eax
         mov     eax, fs:[eax+030h]      ;// _TEB.Peb (_PEB* Peb)
-        mov     eax, [eax+0ch]			;// _PEB.Ldr (_PEB_LDR_DATA* Ldr)
-        mov     esi, [eax+0ch]			;// _PEB_LDR_DATA.InLoadOrderModuleList (_LIST_ENTRY InLoadOrderModuleList)
+        mov     eax, [eax+0ch]          ;// _PEB.Ldr (_PEB_LDR_DATA* Ldr)
+        mov     esi, [eax+0ch]          ;// _PEB_LDR_DATA.InLoadOrderModuleList (_LIST_ENTRY InLoadOrderModuleList)
         lodsd                           ;// _LDR_DATA_TABLE_ENTRY* of ntdll in eax
         mov     esi, eax                ;// to avoid zeroes in code
         lodsd                           ;// _LDR_DATA_TABLE_ENTRY* of kernel32
         mov     eax, [eax+018h]         ;// _LDR_DATA_TABLE_ENTRY.DllBase
-        pop		esi
+        pop	    esi
         ret
     getKernel32Base endp
-    
+
+
     getProcAddress proc
         pushad
         mov     ebp, [esp+01ch]         ;// Store the base address of the module that is being loaded from in ebp.
@@ -95,11 +102,11 @@ assume fs:nothing
         add     eax, ebp                ;// Make the function’s address absolute by adding the base address to it.
         mov     [esp+01ch], eax         ;// Overwrite the stack copy of the preserved eax register so that when popad
                                         ;// is finished the appropriate return value will be set.
-    lFindFunctionFinished:
+      lFindFunctionFinished:
         popad
         ret
     getProcAddress endp
     
-    dllName		db 0                    ;//"ws2_32.dll",0
+    dllName	    db 0                    ;//"ws2_32.dll",0
 
 end

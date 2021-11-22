@@ -38,12 +38,6 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
     return ERROR_SUCCESS;
 }
 
-#ifdef _WIN64
-void __stdcall shLoadLibraryA(void) {
-
-}
-#endif
-
 PSTR getFullDllName() {
     #ifdef _WIN64
         #ifdef _DEBUG
@@ -79,9 +73,11 @@ PSTR getFullDllName() {
 void testShellcodeInLocalProcess() {
     PSTR pShellcodeStr = reinterpret_cast<char*>(shLoadLibraryA);
     size_t shellcodeLen = strlen(pShellcodeStr);
+    LOG("Shellcode string length is: %d", shellcodeLen);
 
     PSTR pDllnameStr = getFullDllName();
     size_t dllnameLen = strlen(pDllnameStr);
+    LOG("Full path to dll is:: %s", pDllnameStr);
 
     size_t memLen = shellcodeLen + dllnameLen + 1;
     PSTR pMem = new char[memLen];
