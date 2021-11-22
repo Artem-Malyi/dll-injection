@@ -17,14 +17,18 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
     LOG("hInstance: 0x%0*x, dwReason: 0x%0*x, lpReserved: 0x%0*x", PTR_WIDTH, hinstDLL, PTR_WIDTH, fdwReason, PTR_WIDTH, lpReserved);
 
-    //
-    // Place your code here.
-    //
-
     switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH: {
         LOG("Process attach");
+        __try {
+            //
+            // Place your code here.
+            //
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            LOG("SEH exception occurred");
+        }
         break;
     }
     case DLL_THREAD_ATTACH: {
