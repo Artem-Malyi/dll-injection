@@ -1,6 +1,10 @@
 ;
 ; shLoadLibraryA-x64.asm
 ;
+; refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
+; also, TEB and PEB can be studied with expression (_TEB*)fs in Visual Studio "Watch" windows during debug.
+; and moreover, some Reserved structure fields names can be obtained with pdbdump utility on MS pdbs with public symbols.
+;
 
 public shLoadLibraryA
 

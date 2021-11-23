@@ -1,6 +1,10 @@
 ;
 ; shLoadLibraryA-x86.asm
 ;
+; refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
+; also, TEB and PEB can be studied with expression (_TEB*)fs in Visual Studio watch windows during debug.
+; and moreover, some Reserved structure fields names can be obtained with pdbdump utility on MS pdbs with public symbols.
+;
 
 .386
 .model flat, stdcall
@@ -17,7 +21,7 @@ assume fs:nothing
         db      030h                    ;// 3. ff 30 -> push dword ptr [eax]
         pop	    eax	                    ;// 4. retore stack pointer after previos instruction
         pop	    eax	                    ;// 5. pop the value that was pushed by call
-        sub	    eax, 8                  ;// 6. eax is now holds a pointer the the beginning of code loadLibraryA
+        sub	    eax, 8                  ;// 6. eax is now holds a pointer the the beginning of code shLoadLibraryA
 
         mov	    ebx, eax
         mov	    ecx, 0 - (getKernel32Base - shLoadLibraryA)
