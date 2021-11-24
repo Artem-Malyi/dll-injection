@@ -15,7 +15,11 @@
 #include "logger.h"
 
 // forward declarations
+//#if _WIN64
+//extern "C" void __fastcall shLoadLibraryA(void);
+//#else
 extern "C" void __stdcall shLoadLibraryA(void);
+//#endif
 
 void testShellcodeInLocalProcess();
 void accessPebLdr();
@@ -27,7 +31,7 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
     __try {
         accessPebLdr();
 
-        //testShellcodeInLocalProcess();
+        testShellcodeInLocalProcess();
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG("SEH exception occurred");
@@ -79,7 +83,7 @@ void testShellcodeInLocalProcess() {
 
     PSTR pDllnameStr = getFullDllName();
     size_t dllnameLen = strlen(pDllnameStr);
-    LOG("Full path to dll is:: %s", pDllnameStr);
+    LOG("Full path to dll is: %s", pDllnameStr);
 
     size_t memLen = shellcodeLen + dllnameLen + 1;
     PSTR pMem = new char[memLen];
@@ -120,13 +124,14 @@ void accessPebLdr() {
 
     // This structure was obtained by pdbdump.exe util from the leaked Windows Vista ntdll.pdb with private debugging symbols:
     // c:\symcache\ntdll.pdb\B958B2F91A5A46B889DAFAB4D140CF252\ntdll.pdb
+
     typedef struct __LDR_DATA_TABLE_ENTRY_VISTA {
-        /*<thisrel this+0x0>*/ /*|0x8|*/ struct _LIST_ENTRY InLoadOrderLinks;
-        /*<thisrel this+0x8>*/ /*|0x8|*/ struct _LIST_ENTRY InMemoryOrderLinks;
-        /*<thisrel this+0x10>*/ /*|0x8|*/ struct _LIST_ENTRY InInitializationOrderLinks;
-        /*<thisrel this+0x18>*/ /*|0x4|*/ void* DllBase;
-        /*<thisrel this+0x1c>*/ /*|0x4|*/ void* EntryPoint;
-        /*<thisrel this+0x20>*/ /*|0x4|*/ unsigned long SizeOfImage;
+        /*<thisrel this+0x00>*/ /*|0x8|*/ struct _LIST_ENTRY InLoadOrderLinks;
+        /*<thisrel this+0x08>*/ /*|0x8|*/ struct _LIST_ENTRY InMemoryOrderLinks;
+        /*<thisrel this+0x10>*/ /*|0x4|*/ void* DllBase;
+        /*<thisrel this+0x14>*/ /*|0x4|*/ void* EntryPoint;
+        /*<thisrel this+0x18>*/ /*|0x4|*/ unsigned long SizeOfImage;
+        /*<thisrel this+0x1c>*/ /*|0x8|*/ struct _LIST_ENTRY InInitializationOrderLinks;
         /*<thisrel this+0x24>*/ /*|0x8|*/ struct _UNICODE_STRING FullDllName;
         /*<thisrel this+0x2c>*/ /*|0x8|*/ struct _UNICODE_STRING BaseDllName;
         /*<thisrel this+0x34>*/ /*|0x4|*/ unsigned long Flags;
@@ -142,12 +147,12 @@ void accessPebLdr() {
     } _LDR_DATA_TABLE_ENTRY_VISTA, * P_LDR_DATA_TABLE_ENTRY_VISTA;
     // <size 0x50>
 
-
     // Process Environment Block (PEB)
     PPEB pebPtr = (PPEB)tebPtr->ProcessEnvironmentBlock;
     PLIST_ENTRY it = pebPtr->Ldr->InMemoryOrderModuleList.Flink;
     while (it) {
         P_LDR_DATA_TABLE_ENTRY_VISTA pModuleEntry = (P_LDR_DATA_TABLE_ENTRY_VISTA)it;
+        PVOID base = pModuleEntry->DllBase;
         if (!pModuleEntry->FullDllName.Length)
             break;
         LOG("Loaded module: %S, image base: 0x%p", pModuleEntry->FullDllName.Buffer, pModuleEntry->DllBase);

@@ -12,6 +12,9 @@
 public shLoadLibraryA
 
 assume fs:nothing
+
+;// Code with this kind of comments can be copied seamlessly to the inline x86 assembler's block of code, a.k.a. __asm { }
+
 .code
 
     shLoadLibraryA proc
@@ -21,7 +24,7 @@ assume fs:nothing
         db      030h                    ;// 3. ff 30 -> push dword ptr [eax]
         pop	    eax	                    ;// 4. retore stack pointer after previos instruction
         pop	    eax	                    ;// 5. pop the value that was pushed by call
-        sub	    eax, 8                  ;// 6. eax is now holds a pointer the the beginning of code shLoadLibraryA
+        sub	    eax, 8                  ;// 6. eax is now holding the pointer to the beginning of the shLoadLibraryA code
 
         mov	    ebx, eax
         mov	    ecx, 0 - (getKernel32Base - shLoadLibraryA)
@@ -94,7 +97,7 @@ assume fs:nothing
         jmp     ComputeHashAgain        ;// Continue looping through the symbol name.
 
       ComputeHashFinished:
-        cmp     edi, [esp+04h]          ;// Check to see if the computed hash matches the requested hash.
+        cmp     edi, [esp+4]            ;// Check to see if the computed hash matches the requested hash.
         jnz     FindFunctionLoop        ;// If the hashes do not match, continue enumerating the exported symbol list. 
                                         ;// Otherwise, drop down and extract the VMA of the symbol.
         mov     ebx, [edx+024h]         ;// Extract the ordinals table relative offset and store it in ebx.
@@ -110,7 +113,8 @@ assume fs:nothing
         popad
         ret
     getProcAddress endp
-    
+
+
     dllName	    db 0                    ;//"ws2_32.dll",0
 
 end
