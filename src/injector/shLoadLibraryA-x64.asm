@@ -12,7 +12,7 @@ public dllName
 .code
 
     shLoadLibraryA proc
-        sub     rsp, 40                 ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes
+        sub     rsp, 028h               ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes
                                         ;// to align the stack from previous usage - the return RIP address pushed on the stack
         and     rsp, 0fffffffffffffff0h ;// Align the stack to a multiple of 16 bytes
 
@@ -21,7 +21,7 @@ public dllName
         db      030h                    ;// 3. ff 30 -> push qword ptr [rax]
         pop     rax                     ;// 4. retore stack pointer after previos instruction
         pop     rax                     ;// 5. pop the value that was pushed by call
-        sub     rax, 16                 ;// 6. rax is now holding the pointer to the beginning of the shLoadLibraryA code
+        sub     rax, 010h               ;// 6. rax is now holding the pointer to the beginning of the shLoadLibraryA code
 
         mov     r15, rax
         mov     rcx, 0 - (getKernel32Base - shLoadLibraryA)
@@ -38,13 +38,13 @@ public dllName
         call    r10                     ;// call getProcAddress, after the call rax = pLoadLibraryA
 
         mov     rcx, r15
-        ;mov     rdx, 0 - (dllName - shLoadLibraryA)
-        ;neg     rdx
-        ;add     rcx, rdx                ;// pDllName
-        lea     rcx, [dllName] 
+        mov     rdx, 0 - (dllName - shLoadLibraryA)
+        neg     rdx
+        and     dx, 0f0ffh
+        add     rcx, rdx                ;// pDllName
         call    rax                     ;// call LoadLibraryA(dllName)
 
-        add     rsp, 40
+        add     rsp, 028h
         ret
     shLoadLibraryA endp
 
