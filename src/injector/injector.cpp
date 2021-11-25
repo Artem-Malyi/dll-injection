@@ -4,6 +4,7 @@
 
 #include <Windows.h>
 #include <winternl.h>
+#include <intrin.h>
 
 #ifdef _WIN64
     #define LOG_PREFIX "injector64"
@@ -14,15 +15,22 @@
 #define FILE_LOGGER_ENABLED
 #include "logger.h"
 
+typedef unsigned __int64 QWORD;
+
 // forward declarations
-//#if _WIN64
-//extern "C" void __fastcall shLoadLibraryA(void);
-//#else
-extern "C" void __stdcall shLoadLibraryA(void);
-//#endif
+#if _WIN64
+    extern "C" void __fastcall shLoadLibraryA(void);
+    extern "C" QWORD __fastcall stringToRor13Hash(PSTR);
+    extern "C" PVOID __fastcall getProcAddressAsm(PVOID peImage, QWORD shl13NameHash);
+    PVOID getProcAddress(PVOID peImage, QWORD shl13NameHash);
+#else
+    extern "C" void __stdcall shLoadLibraryA(void);
+    extern "C" DWORD __stdcall stringToRor13Hash(PSTR);
+#endif
 
 void testShellcodeInLocalProcess();
 void accessPebLdr();
+
 
 BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
@@ -31,7 +39,7 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
     __try {
         accessPebLdr();
 
-        testShellcodeInLocalProcess();
+        //testShellcodeInLocalProcess();
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG("SEH exception occurred");
@@ -158,4 +166,38 @@ void accessPebLdr() {
         LOG("Loaded module: %S, image base: 0x%p", pModuleEntry->FullDllName.Buffer, pModuleEntry->DllBase);
         it = it->Flink;
     }
+
+#ifdef _WIN64
+    PVOID pKernel32Base = ((P_LDR_DATA_TABLE_ENTRY_VISTA)pebPtr->Ldr->InMemoryOrderModuleList.Flink->Flink->Flink)->DllBase;
+    PVOID pLoadLibrary = getProcAddress(pKernel32Base, 0x07203081c80f2041); // 0x07203081c80f2041 for LoadLibraryA
+    LOG("LoadLibrary: 0x%p, expected: 0x%p", pLoadLibrary, GetProcAddress((HMODULE)pKernel32Base, "LoadLibraryA"));
+#endif
 }
+
+#ifdef _WIN64
+#pragma optimize ("gs", on)
+PVOID getProcAddress(PVOID peImage, QWORD ror13NameHash) {
+    PIMAGE_DOS_HEADER idh = (PIMAGE_DOS_HEADER)peImage;
+    PIMAGE_NT_HEADERS64 inh = (PIMAGE_NT_HEADERS64)((PBYTE)idh + idh->e_lfanew);
+    PIMAGE_DATA_DIRECTORY idd = &inh->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    PIMAGE_EXPORT_DIRECTORY ied = (PIMAGE_EXPORT_DIRECTORY)((PBYTE)peImage + idd->VirtualAddress);
+    PDWORD namesTable = (PDWORD)((PBYTE)peImage + ied->AddressOfNames);
+    PDWORD funcsTable = (PDWORD)((PBYTE)peImage + ied->AddressOfFunctions);
+    for (DWORD i = 0; i < ied->NumberOfNames; i++) {
+        PSTR name = (PSTR)((PBYTE)peImage + namesTable[i]);
+        PVOID func = (PVOID)((PBYTE)peImage + funcsTable[i]);
+        QWORD hash = 0;
+        PSTR it = name;
+        while (it && *it) {
+            hash <<= 13;
+            hash += *it;
+            ++it;
+        }
+        if (hash == ror13NameHash) {
+            //LOG("%s: 0x%p, hash: 0x%p", name, func, hash);
+            return func;
+        }
+    }
+    return NULL;
+}
+#endif

@@ -106,7 +106,7 @@ assume fs:nothing
         mov     ebx, [edx+01ch]         ;// Extract the address table relative offset and store it in ebx.
         add     ebx, ebp                ;// Make the address table address absolute by adding the base address to it.
         mov     eax, [ebx+4*ecx]        ;// Extract the relative function offset from its ordinal and store it in eax.
-        add     eax, ebp                ;// Make the function’s address absolute by adding the base address to it.
+        add     eax, ebp                ;// Make the function's address absolute by adding the base address to it.
         mov     [esp+01ch], eax         ;// Overwrite the stack copy of the preserved eax register so that when popad
                                         ;// is finished the appropriate return value will be set.
       lFindFunctionFinished:
@@ -116,5 +116,24 @@ assume fs:nothing
 
 
     dllName	    db 0                    ;//"ws2_32.dll",0
+
+
+    stringToRor13Hash proc, string: dword
+        mov     esi, string	            ; 0EC0E4E8Eh
+        xor     edi, edi                ; Zero edi as it will hold the hash value for the current symbols function name.
+        xor     eax, eax                ; Zero eax in order to ensure that the high order bytes are zero as this will
+        cld
+      lComputeHash:
+        lodsb                           ; Load the byte at esi, the current symbol name, into al and increment esi.
+        test    al, al                  ; Bitwise test al with itself to see if the end of the string has been reached.
+        jz      lHashFinished           ; If ZF is set the end of the string has been reached. Jump to the end of the hash calculation.
+        ror     edi, 0dh                ; Rotate the current value of the hash 13 bits to the right.
+        add     edi, eax                ; Add the current character of the symbol name to the hash accumulator.
+        jmp     lComputeHash		    ; Continue looping through the symbol name.
+      lHashFinished:
+        mov	    eax, edi
+        ret
+    stringToRor13Hash endp
+
 
 end

