@@ -22,6 +22,7 @@ typedef unsigned __int64 QWORD;
     extern "C" void __fastcall shLoadLibraryA(void);
     extern "C" QWORD __fastcall stringToRor13Hash(PSTR);
     extern "C" PVOID __fastcall getProcAddressAsm(PVOID peImage, QWORD shl13NameHash);
+    extern "C" CHAR dllName[];
     PVOID getProcAddress(PVOID peImage, QWORD shl13NameHash);
 #else
     extern "C" void __stdcall shLoadLibraryA(void);
@@ -37,9 +38,9 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
     LOG("hInstance: 0x%p, dwReason: 0x%p, lpReserved: 0x%p", hinstDLL, fdwReason, lpReserved);
 
     __try {
-        accessPebLdr();
+        //accessPebLdr();
 
-        //testShellcodeInLocalProcess();
+        testShellcodeInLocalProcess();
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG("SEH exception occurred");
@@ -86,7 +87,11 @@ PSTR getFullDllName() {
 
 void testShellcodeInLocalProcess() {
     PSTR pShellcodeStr = reinterpret_cast<char*>(shLoadLibraryA);
+#ifdef _WIN64
+    size_t shellcodeLen = dllName - pShellcodeStr;
+#else
     size_t shellcodeLen = strlen(pShellcodeStr);
+#endif
     LOG("Shellcode string length is: %d", shellcodeLen);
 
     PSTR pDllnameStr = getFullDllName();
@@ -100,7 +105,11 @@ void testShellcodeInLocalProcess() {
         return;
 
     // for the following to work the shellcode must be null-free!
+#ifdef _WIN64
+    memcpy(pMem, pShellcodeStr, shellcodeLen);
+#else
     strncpy(pMem, pShellcodeStr, shellcodeLen);
+#endif
     strncpy(pMem + shellcodeLen, pDllnameStr, dllnameLen);
     size_t fullLen = strlen(pMem);
     LOG("Payload full length is: %d", fullLen);
