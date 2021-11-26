@@ -117,83 +117,66 @@ public dllName
     ; rcx - image base
     ; rdx - shl13 hash
     getProcAddressAsm proc
-;PVOID getProcAddress(PVOID peImage, QWORD ror13NameHash) {
-;        mov     qword ptr [rsp+8],rbx
-;        mov     qword ptr [rsp+10h],rsi  
-;        mov     qword ptr [rsp+18h],rdi  
-;    PIMAGE_DOS_HEADER idh = (PIMAGE_DOS_HEADER)peImage;
-;    PIMAGE_NT_HEADERS64 inh = (PIMAGE_NT_HEADERS64)((PBYTE)idh + idh->e_lfanew);
-        movsxd  rax,dword ptr [rcx+3Ch] ; 00007FF7ABBD135F 48 63 41 3C 
-;    PIMAGE_DATA_DIRECTORY idd = &inh->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-;    PIMAGE_EXPORT_DIRECTORY ied = (PIMAGE_EXPORT_DIRECTORY)((PBYTE)peImage + idd->VirtualAddress);
-;    PDWORD namesTable = (PDWORD)((PBYTE)peImage + ied->AddressOfNames);
-;    PDWORD funcsTable = (PDWORD)((PBYTE)peImage + ied->AddressOfFunctions);
-;    for (DWORD i = 0; i < ied->NumberOfNames; i++) {
-        xor     r11d,r11d               ; 00007FF7ABBD1363 45 33 DB  
-        mov     rsi,rdx                 ; 00007FF7ABBD1366 48 8B F2 
-        mov     r10,rcx                 ; 00007FF7ABBD1369 4C 8B D1 
-        mov     r8d,dword ptr [rax+rcx+88h] ; 00007FF7ABBD136C 44 8B 84 08 88 00 00 00  
-        mov     eax,dword ptr [r8+rcx+20h]  ; 00007FF7ABBD1374 41 8B 44 08 20   
-        mov     edi,dword ptr [r8+rcx+18h]  ; 00007FF7ABBD1379 41 8B 7C 08 18   
-        mov     ebx,dword ptr [r8+rcx+1Ch]  ; 00007FF7ABBD137E 41 8B 5C 08 1C   
-        lea     r9,[rax+rcx]            ; 00007FF7ABBD1383 4C 8D 0C 08    
-        test    edi,edi                 ; 00007FF7ABBD1387 85 FF         
-        je      lHashNotFound           ;00007FF7ABBD1389 74 3B       
-        sub     rbx,rax                 ; 00007FF7ABBD138B 48 2B D8 
-;        PSTR name = (PSTR)((PBYTE)peImage + namesTable[i]);
-;        PVOID func = (PVOID)((PBYTE)peImage + funcsTable[i]);
+        movsxd  rax, dword ptr [rcx+3Ch];// Skip over the MSDOS header to the start of the PE header. rax = PIMAGE_DOS_HEADER->e_lfanew.
+        xor     r11d, r11d              ;// Counter ? 
+        mov     rsi, rdx                ;// Store the 'shift left for 13 bits' hash of the function name in rsi.
+        mov     r10, rcx                ;// Store the image base address in r10.
+        mov     r8d, dword ptr [rax+rcx+88h] ; 44 8B 84 08 88 00 00 00  // The IMAGE_EXPORT_DIRECTORY is 0x88 bytes from the start of the PE64 header.
+        mov     eax, dword ptr [r8+rcx+20h]  ;// Extract the AddressOfNames table relative offset and store in eax.
+        mov     edi, dword ptr [r8+rcx+18h]  ;// Extract the NumberOfNames, number of exported items and store it in edi which will be used as the counter.
+        mov     ebx, dword ptr [r8+rcx+1Ch]  ;// Extract the AddressOfFunctions table relative offset, make this address absolute and store it in ebx. 
+        lea     r9, [rax+rcx]           ;// Make the AddressOfNames table address absolute by adding the base address to it. r9 = VA of AddressOfNames.  
+        test    edi, edi                ;// If edi is zero then the last symbol has been checked and as such     
+        je      lHashNotFound           ;// jump to the end of the function. If this condition is ever true then the requested symbol was not resolved properly.     
+        sub     rbx, rax                ;
       lNextFunction:
-        mov     r8d,dword ptr [r9+rbx]  ;00007FF7ABBD138E 45 8B 04 19   
-;        QWORD hash = 0;
-        xor     ecx,ecx                 ;00007FF7ABBD1392 33 C9      
-        mov     edx,dword ptr [r9]      ;00007FF7ABBD1394 41 8B 11    
-        add     r8,r10                  ;00007FF7ABBD1397 4D 03 C2     
-        add     rdx,r10                 ;00007FF7ABBD139A 49 03 D2     
+        mov     r8d, dword ptr [r9+rbx] ; Extract relative offset (RVA) of the next function body.  
+        xor     ecx, ecx                ; Hash accumulator. Will store the computed hash of the function name string.
+        mov     edx, dword ptr [r9]     ; Extract relative offset (RVA) of the next function name.   
+        add     r8, r10                 ; Make the function body address absolute (RVA -> VA) by adding the image base address to it.     
+        add     rdx, r10                ; Make the function name address absolute (RVA -> VA) by adding the image base address to it.     
 ;        PSTR it = name;
 ;        while (it && *it) {
-        je      lCompareHash            ;00007FF7ABBD139D 74 16     
+        je      lCompareHash            ; 74 16     
       lNextChar:
-        cmp     byte ptr [rdx],0        ;00007FF7ABBD139F 80 3A 00     
-        je      lCompareHash            ;00007FF7ABBD13A2 74 11      
+        mov     rax, [rdx]              ; 48 8B 02  
+        test    al, al                  ; 84 C0 // to avoid null bytes
+        je      lCompareHash            ; 74 11      
 ;            hash <<= 13;
 ;            hash += *it;
-        movsx   rax,byte ptr [rdx]      ;00007FF7ABBD13A4 48 0F BE 02    
-        shl     rcx,0Dh                 ;00007FF7ABBD13A8 48 C1 E1 0D    
-        add     rcx,rax                 ;00007FF7ABBD13AC 48 03 C8     
+        movsx   rax, byte ptr [rdx]     ; 48 0F BE 02    
+        shl     rcx, 0Dh                ; 48 C1 E1 0D    
+        add     rcx, rax                ; 48 03 C8     
 ;            ++it;
-        add     rdx,1                   ;00007FF7ABBD13AF 48 83 C2 01   
-        jne     lNextChar               ;00007FF7ABBD13B3 75 EA      
+        add     rdx, 1                  ; 48 83 C2 01   
+        jne     lNextChar               ; 75 EA      
 ;        }
 ;        if (hash == ror13NameHash) {
       lCompareHash:
-        cmp     rcx,rsi                 ; 00007FF7ABBD13B5 48 3B CE      
-        je      lHashFound              ; 00007FF7ABBD13B8 74 1E         
+        cmp     rcx, rsi                ; 48 3B CE      
+        je      lHashFound              ; 74 1E         
 ;    PIMAGE_DATA_DIRECTORY idd = &inh->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
 ;    PIMAGE_EXPORT_DIRECTORY ied = (PIMAGE_EXPORT_DIRECTORY)((PBYTE)peImage + idd->VirtualAddress);
 ;    PDWORD namesTable = (PDWORD)((PBYTE)peImage + ied->AddressOfNames);
 ;    PDWORD funcsTable = (PDWORD)((PBYTE)peImage + ied->AddressOfFunctions);
 ;    for (DWORD i = 0; i < ied->NumberOfNames; i++) {
-        inc     r11d                    ; 00007FF7ABBD13BA 41 FF C3       
-        add     r9,4                    ; 00007FF7ABBD13BD 49 83 C1 04    
-        cmp     r11d,edi                ; 00007FF7ABBD13C1 44 3B DF     
-        jb      lNextFunction           ; 00007FF7ABBD13C4 72 C8        
+        inc     r11d                    ; 41 FF C3       
+        add     r9, 4                   ; 49 83 C1 04    
+        cmp     r11d, edi               ; 44 3B DF     
+        jb      lNextFunction           ; 72 C8        
 ;        }
 ;    }
 ;    return NULL;
       lHashNotFound:
-        xor     eax,eax                 ; 00007FF7ABBD13C6 33 C0        
+        xor     eax, eax                ; 33 C0        
 ;}
       lReturn:
-;        mov     rbx,qword ptr [rsp+8]   ; 00007FF7ABBD13C8 48 8B 5C 24 08    
-;        mov     rsi,qword ptr [rsp+10h] ; 00007FF7ABBD13CD 48 8B 74 24 10  
-;        mov     rdi,qword ptr [rsp+18h] ; 00007FF7ABBD13D2 48 8B 7C 24 18   
-        ret  ; 00007FF7ABBD13D7 C3    
+        ret                             ; C3    
 ;            //LOG("%s: 0x%p, hash: 0x%p", name, func, hash);
 ;            return func;
       lHashFound:
-        mov     rax,r8                  ; 00007FF7ABBD13D8 49 8B C0     
-        jmp     lReturn                 ; 00007FF7ABBD13DB EB EB        
-;--- No source file -------------------------------------------------------------
+        mov     rax, r8                 ; 49 8B C0     
+        jmp     lReturn                 ; EB EB        
     getProcAddressAsm endp
 
 
