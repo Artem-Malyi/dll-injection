@@ -1,6 +1,10 @@
 ;
 ; shLoadLibraryA-x64.asm
 ;
+; Shellcode that calls LoadLibraryA with the dll name appended to its end.
+;     Size:      280 bytes
+;     Null-free: yes
+;
 ; Refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
 ; Note, TEB and PEB can be studied with expression (_TEB*)fs in Visual Studio "Watch" windows during debug.
 ; Moreover, some Reserved structure fields names can be obtained with pdbdump utility on MS pdbs with public symbols.
@@ -17,7 +21,7 @@ public shLoadLibraryA
     ;     The code aligns the stack, then finds its start address and calls some utilit routines.
     ;
     ; Parameters:
-    ;     None. The ascii string must be appended to the end of the code, where the code will find it under dllName.
+    ;     None. The asciiz string must be appended to the end of the code, where the code will find it under dllName.
     ;
     shLoadLibraryA proc
         sub     rsp, 028h               ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes.
@@ -90,7 +94,7 @@ public shLoadLibraryA
     ; getProcAddressAsm
     ;
     ; This routine is similar to Kernel32.dll!GetProcAddress(HMODULE, LPCSTR), but it accepts ror13 hashes
-    ;     instead of the ascii string and it does not support Forwarded Exported symbols.
+    ;     instead of the asciiz string and it does not support Forwarded Exported symbols.
     ;
     ; Parameters:
     ;     rcx = image base
@@ -161,9 +165,9 @@ public shLoadLibraryA
     ; But it's rather the utility function to produce  ror13 hashes of the string passed in rcx.
     ;
     ; Parameters:
-    ;     rcx = ascii string to hash
+    ;     rcx = asciiz string to hash
     ;
-    stringToRor13Hash proc              ;// rcx - the pointer to the ascii string.
+    stringToRor13Hash proc              ;// rcx - the pointer to the asciiz string.
         mov     rsi, rcx                ;// ror13: 0xC6042601260A288D for LoadLibraryA
         xor     rdi, rdi                ;// Zero rdi as it will hold the hash value for the current symbols function name.
         xor     rax, rax                ;// Zero rax in order to ensure that the high order bytes are zero as this will hold the resulting hash.

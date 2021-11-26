@@ -1,9 +1,13 @@
 ;
 ; shLoadLibraryA-x86.asm
 ;
-; refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
-; also, TEB and PEB can be studied with expression (_TEB*)fs in Visual Studio watch windows during debug.
-; and moreover, some Reserved structure fields names can be obtained with pdbdump utility on MS pdbs with public symbols.
+; Shellcode that calls LoadLibraryA with the dll name appended to its end.
+;     Size:      161 bytes
+;     Null-free: yes
+;
+; Refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
+; Note, TEB and PEB can be studied with expression (_TEB*)fs in Visual Studio watch windows during debug.
+; Moreover, some Reserved structure fields names can be obtained with pdbdump utility on MS pdbs with public symbols.
 ;
 
 .386
@@ -115,7 +119,7 @@ assume fs:nothing
     getProcAddress endp
 
 
-    dllName	    db 0                    ;//"ws2_32.dll",0
+    dllName	    db 0                    ;//"ws2_32.dll",0 ; To quickly test the shellcode, uncomment this instead of the zero in "db 0" expression.
 
 
     stringToRor13Hash proc, string: dword
