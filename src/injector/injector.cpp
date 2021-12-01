@@ -118,11 +118,14 @@ void testShellcodeInLocalProcess() {
     LOG("Returned from LoadLibrary() call");
 
     HMODULE pImageBaseAfter = GetModuleHandleA(pDllnameStr);
+    LOG("GetModuleHandleA(%s) returned 0x%p", pDllnameStr, pImageBaseAfter);
 
     assert(!pImageBaseBefore && pImageBaseAfter);
 
-    bRes = FreeLibrary(pImageBaseAfter);
-    LOG("FreeLibrary(0x%p) returned %d", pImageBaseAfter, bRes);
+    if (pImageBaseAfter) {
+        bRes = FreeLibrary(pImageBaseAfter);
+        LOG("FreeLibrary(0x%p) returned %d", pImageBaseAfter, bRes);
 
-    delete[] pMem;
+        delete[] pMem;
+    }
 }
