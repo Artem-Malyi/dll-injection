@@ -203,10 +203,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\common\logger.cpp" />
+    <ClCompile Include="..\common\peutils.cpp" />
     <ClCompile Include="injector.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\common\logger.h" />
+    <ClInclude Include="..\common\peutils.h" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="shLoadLibraryA-x64.asm">
