@@ -2,7 +2,7 @@
 ; shLoadLibraryA-x64.asm
 ;
 ; Shellcode that calls LoadLibraryA with the dll name appended to its end.
-;     Size:      290 bytes
+;     Size:      302 bytes
 ;     Null-free: yes
 ;
 ; Refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
@@ -101,9 +101,13 @@ public shLoadLibraryA
     ;     rdx = ror13 hash
     ;
     getProcAddressAsm proc
-        push    rbx                     ;// Store value from rbx on the stack. Not using shadow stack memory to make the shellcode shorter.
-        push    r8                      ;// Store value from r8 on the stack. Not using shadow stack memory to make the shellcode shorter.
-        push    r9                      ;// Store value from r9 on the stack. Not using shadow stack memory to make the shellcode shorter.
+        push    rbx                     ;// Store register values on the stack. Not using shadow stack memory to make the shellcode shorter.
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+        push    r14
+
         movsxd  rax, dword ptr [rcx+3Ch];// Skip over the MSDOS header to the start of the PE header. rax = PIMAGE_DOS_HEADER->e_lfanew.
         xor     r11d, r11d              ;// Initialize to zero the counter of the entries in the AddressOfFunctions/AddressOfNames tables.
         mov     rsi, rdx                ;// Store the 'rotate right for 13 bits' hash of the function name in rsi.
@@ -145,9 +149,12 @@ public shLoadLibraryA
       lHashNotFound:                    ;// proceed to function's exit, setting the result to zero.
         xor     rax, rax                ;// The requested symbol was not resolved properly, return zero in this case.
       lReturn:
-        pop     r9                      ;// Restore the previous value of r9
-        pop     r8                      ;// Restore the previous value of r8
-        pop     rbx                     ;// Resotre the previous value of rbx
+        pop     r14                     ;// Resotre the previous values of registers
+        pop     r11
+        pop     r10
+        pop     r9
+        pop     r8
+        pop     rbx
         ret
       lHashFound:
         mov     rax, r8                 ;// Move absolute address of the found funtion to rax register.
