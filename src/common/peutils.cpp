@@ -7,6 +7,13 @@
 #include <Windows.h>
 #include <winternl.h> // for PEB/TEB structures
 
+#ifdef _WIN64
+#define LOG_PREFIX "peutilsr64"
+#else
+#define LOG_PREFIX "peutils32"
+#endif
+#define DEBUG_LOGGER_ENABLED
+#define FILE_LOGGER_ENABLED
 #include <logger.h>
 
 namespace peutils {
