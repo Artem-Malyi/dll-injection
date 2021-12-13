@@ -29,8 +29,9 @@ typedef unsigned __int64 QWORD;
     extern "C" void __stdcall shLoadLibraryA(void);
 #endif
 
-void testShellcodeInLocalProcess();
-void testShellcodeInOtherProcess(PWSTR processName);
+PCSTR getDllPath();
+void testShellcodeInLocalProcess(PCSTR dllPath);
+void injectDllIntoProcess(PCSTR dllPath, PCSTR processName);
 
 BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
@@ -39,9 +40,9 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
     __try {
         peutils::listTEBLoadedDlls();
 
-        testShellcodeInLocalProcess();
+        testShellcodeInLocalProcess(getDllPath());
 
-        testShellcodeInOtherProcess(L"notepad.exe");
+        injectDllIntoProcess(getDllPath(), "notepad.exe");
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG("SEH exception occurred");
@@ -54,7 +55,7 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
     return ERROR_SUCCESS;
 }
 
-PSTR getFullDllName() {
+PCSTR getDllPath() {
     #ifdef _WIN64
         #ifdef _DEBUG
             #define DLL_NAME "rsFileProtect64d.dll"
@@ -79,23 +80,25 @@ PSTR getFullDllName() {
         return NULL;
 
     static CHAR fullDllName[MAX_PATH] = { 0 };
-    int res = wnsprintfA(fullDllName, sizeof(fullDllName), "%s\\%s", filePath, DLL_NAME);
+    int res = wnsprintfA(fullDllName, _countof(fullDllName), "%s\\%s", filePath, DLL_NAME);
     if (res < 0)
         return NULL;
 
     return fullDllName;
 }
 
-DWORD getPidByModuleName(PWSTR processName) {
+DWORD getPidByModuleName(PCSTR processName) {
     if (!processName && !processName[0])
         return -1;
+    WCHAR procName[MAX_PATH] = { 0 };
+    wnsprintfW(procName, _countof(procName), L"%S", processName);
     PROCESSENTRY32 pe32 = { 0 };
     pe32.dwSize = sizeof(PROCESSENTRY32);
     HANDLE hTool32 = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
     BOOL bProcess = Process32First(hTool32, &pe32);
     if (bProcess == TRUE) {
         while ((Process32Next(hTool32, &pe32)) == TRUE) {
-            if (wcscmp(pe32.szExeFile, processName) == 0) {
+            if (wcscmp(pe32.szExeFile, procName) == 0) {
                 return pe32.th32ProcessID;
             }
         }
@@ -104,19 +107,28 @@ DWORD getPidByModuleName(PWSTR processName) {
     return -1;
 }
 
-
-void testShellcodeInLocalProcess() {
+//
+// testShellcodeInLocalProcess
+//     Appends the given dllPath to the end of the LoadLibraryA shellcode,
+//     places it on the memory heap, and executes it from there.
+//     Asserts that this dll is in the list of loaded libraries, and unloads
+//     it, if it's loaded.
+//     Assumes that the shellcode is null-free.
+//
+// Parameters:
+//     dllPath - the full path to the DLL image on the file system.
+//
+void testShellcodeInLocalProcess(PCSTR dllPath) {
     PSTR pShellcodeStr = reinterpret_cast<char*>(shLoadLibraryA);
     size_t shellcodeLen = strlen(pShellcodeStr);
     LOG("Shellcode string length is: %d", shellcodeLen);
 
-    PSTR pDllnameStr = getFullDllName();
-    size_t dllnameLen = strlen(pDllnameStr);
-    LOG("Full path to dll is: %s", pDllnameStr);
+    size_t dllPathLen = strlen(dllPath);
+    LOG("Full path to dll is: %s", dllPath);
 
-    HMODULE pImageBaseBefore = GetModuleHandleA(pDllnameStr);
+    HMODULE pImageBaseBefore = GetModuleHandleA(dllPath);
 
-    size_t memLen = shellcodeLen + dllnameLen + 1;
+    size_t memLen = shellcodeLen + dllPathLen + 1;
     PSTR pMem = new char[memLen];
     memset(pMem, 0, memLen);
     if (!pMem)
@@ -124,7 +136,7 @@ void testShellcodeInLocalProcess() {
 
     // for the following to work the shellcode must be null-free!
     strncpy(pMem, pShellcodeStr, shellcodeLen);
-    strncpy(pMem + shellcodeLen, pDllnameStr, dllnameLen);
+    strncpy(pMem + shellcodeLen, dllPath, dllPathLen);
     size_t fullLen = strlen(pMem);
     LOG("Payload full length is: %d", fullLen);
 
@@ -135,14 +147,14 @@ void testShellcodeInLocalProcess() {
     typedef void(__stdcall* shellcode_t)();
     shellcode_t pShellcode = reinterpret_cast<shellcode_t>(pMem);
 
-    LOG("Calling LoadLibrary(%s) shellcode", pDllnameStr);
+    LOG("Calling LoadLibrary(%s) shellcode", dllPath);
     pShellcode();
 
     Sleep(2000);
     LOG("Returned from LoadLibrary() call");
 
-    HMODULE pImageBaseAfter = GetModuleHandleA(pDllnameStr);
-    LOG("GetModuleHandleA(%s) returned 0x%p", pDllnameStr, pImageBaseAfter);
+    HMODULE pImageBaseAfter = GetModuleHandleA(dllPath);
+    LOG("GetModuleHandleA(%s) returned 0x%p", dllPath, pImageBaseAfter);
 
     assert(!pImageBaseBefore && pImageBaseAfter);
 
@@ -154,12 +166,25 @@ void testShellcodeInLocalProcess() {
     }
 }
 
-void testShellcodeInOtherProcess(PWSTR processName) {
+//
+// injectDllIntoProcess
+//     Performs the OpenProcess/VirtualAllocEx/GetProcAddress(LoadLibrary)/WriteProcessMemory/CreateRemoteThread
+//     injection approach.
+//     Relies on the fact that all the processes of the same address pointer size, will actually have kernel32.dll
+//     being loaded to the same location in memory, as all other processes from the same user login session.
+//     In this case, the address of LoadLibraryA function in current process will be exactly the same as in,
+//     for instance, notepad.exe .
+//
+// Parameters:
+//     dllPath - the full path to the DLL image on the file system.
+//     processName - the name of the process to inject DLL into.
+//
+void injectDllIntoProcess(PCSTR dllPath, PCSTR processName) {
     SetLastError(0);
     ULONG ulLastError = GetLastError();
 
     DWORD pid = getPidByModuleName(processName);
-    LOG("getPidByModuleName(%S) returned %d", processName, pid);
+    LOG("getPidByModuleName(%s) returned %d", processName, pid);
     if (pid == -1)
         return;
 
@@ -171,13 +196,12 @@ void testShellcodeInOtherProcess(PWSTR processName) {
         return;
 
     // Allocate memory inside the process
-    PSTR pDllnameStr = getFullDllName();
-    size_t dllnameLen = strlen(pDllnameStr);
-    LOG("Full path to dll is: %s", pDllnameStr);
+    size_t dllPathLen = strlen(dllPath);
+    LOG("Full path to dll is: %s", dllPath);
     SetLastError(0);
-    LPVOID pDllName = (LPVOID)VirtualAllocEx(hProcess, NULL, dllnameLen, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    LPVOID pDllName = (LPVOID)VirtualAllocEx(hProcess, NULL, dllPathLen, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     ulLastError = GetLastError();
-    LOG("VirtualAllocEx(phandle: 0x%08x, size: %d) returned 0x%08x, GetLastError(): %d", hProcess, dllnameLen, pDllName, ulLastError);
+    LOG("VirtualAllocEx(phandle: 0x%08x, size: %d) returned 0x%08x, GetLastError(): %d", hProcess, dllPathLen, pDllName, ulLastError);
     if (!pDllName)
         return;
 
@@ -190,7 +214,7 @@ void testShellcodeInOtherProcess(PWSTR processName) {
 
     // Write to memory
     SetLastError(0);
-    BOOL bRes = WriteProcessMemory(hProcess, pDllName, pDllnameStr, dllnameLen, NULL);
+    BOOL bRes = WriteProcessMemory(hProcess, pDllName, dllPath, dllPathLen, NULL);
     ulLastError = GetLastError();
     LOG("WriteProcessMemory(phandle: 0x%08x) returned %d, GetLastError(): %d", hProcess, bRes, ulLastError);
     if (!bRes)
