@@ -13,6 +13,8 @@
 #define FILE_LOGGER_ENABLED
 #include "logger.h"
 
+DWORD WINAPI ThreadProc(_In_ LPVOID lpParameter);
+
 BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
     LOG("hInstance: 0x%0*x, dwReason: 0x%0*x, lpReserved: 0x%0*x", PTR_WIDTH, hinstDLL, PTR_WIDTH, fdwReason, PTR_WIDTH, lpReserved);
@@ -23,8 +25,14 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
         LOG("Process attach");
         __try {
             //
-            // Place your code here.
+            // The correct way to start a separate service thread from this dll would be to export the
+            // dedicated function, and to call this function from the injecting process. This would allow
+            // for a proper unloading of the dll when needed, without deadlocking the process of interest.
+            // But for now, assuming that this dll will be loaded forever inside the process, the thread
+            // is started from DllMain.
             //
+
+            CreateThread(NULL, 0, ThreadProc, NULL, 0, NULL);
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             LOG("SEH exception occurred");
@@ -44,4 +52,14 @@ BOOL WINAPI EntryPoint(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
         break;
     }
     return TRUE;
+}
+
+DWORD WINAPI ThreadProc(_In_ LPVOID lpParameter) {
+    while (TRUE) {
+        LOG("Running service thread...");
+
+        Sleep(5000);
+    }
+
+    return 0;
 }
