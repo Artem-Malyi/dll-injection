@@ -8,7 +8,7 @@
 #include <winternl.h> // for PEB/TEB structures
 
 #ifdef _WIN64
-#define LOG_PREFIX "peutilsr64"
+#define LOG_PREFIX "peutils64"
 #else
 #define LOG_PREFIX "peutils32"
 #endif
